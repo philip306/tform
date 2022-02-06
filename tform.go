@@ -40,6 +40,7 @@ func ExecuteTform(projPath string, libPath string, outDisable bool) (e error) {
 
 	output := fmt.Sprint("~~Executing with Terraform version: ", selectedVer)
 	fmt.Println(output)
+	TFFormat(chocoPath, outDisable)
 	cmd := exec.Command(chocoPath)
 	cmd.Args = args
 	if !outDisable {
@@ -50,6 +51,20 @@ func ExecuteTform(projPath string, libPath string, outDisable bool) (e error) {
 	cmd.Run()
 
 	return nil
+}
+
+func TFFormat(chocoPath string, outDisable bool) {
+	var args []string
+	args = append(args, chocoPath)
+	args = append(args, "fmt")
+	cmd := exec.Command(chocoPath)
+	cmd.Args = args
+	if !outDisable {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
+	cmd.Stdin = os.Stdin
+	cmd.Run()
 }
 
 func ChooseVer(projpath string, chocolib string) (selVer string, e error) {
