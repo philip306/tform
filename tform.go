@@ -11,30 +11,27 @@ import (
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 )
 
+var defaultProjPath string = "."
+var defaultLibPath string = "C:\\programdata\\chocolatey\\lib\\"
+
 func main() {
-	insVer := CheckVersion()
-	Versions(insVer).Sort()
-	version := ParseMain()
-	var v ConstraintStr = ConstraintStr(version)
-	accepted, err := v.Parse()
+
+	err := ExecuteTform(defaultProjPath, defaultLibPath, false)
 	if err != nil {
 		fmt.Println(err)
-	}
-	var selectedVer string = ""
-	for _, ver := range insVer {
-		if accepted.Allows(ver) {
-			selectedVer = ver.String()
-			break
-		}
-	}
-	if selectedVer == "" {
-		fmt.Println("Terraform version satisfying: " + version + " was not found on your system.")
-		fmt.Println("Check your chocolately lib or try 'choco install terraform --version [VERSION] -my' and try again.")
 		os.Exit(1)
+	}
+}
+
+func ExecuteTform(projPath string, libPath string, outDisable bool) (e error) {
+	selectedVer, err := ChooseVer(projPath, libPath)
+	if err != nil {
+		return err
 	}
 
 	chocoPath := "C:\\programdata\\chocolatey\\lib\\terraform." + selectedVer + "\\tools\\terraform.exe"
 
+	// setup command with args to be executed
 	var args []string
 	args = append(args, chocoPath)
 	flag.Parse()
@@ -45,39 +42,72 @@ func main() {
 	fmt.Println(output)
 	cmd := exec.Command(chocoPath)
 	cmd.Args = args
-	cmd.Stdout = os.Stdout
+	if !outDisable {
+		cmd.Stdout = os.Stdout
+		cmd.Stderr = os.Stderr
+	}
 	cmd.Stdin = os.Stdin
-	cmd.Stderr = os.Stderr
 	cmd.Run()
+
+	return nil
 }
 
-func ParseMain() (version string) {
-	module, _ := tfconfig.LoadModule(".")
+func ChooseVer(projpath string, chocolib string) (selVer string, e error) {
+
+	// parse local tf project to get version contrain
+	if !Exists(projpath) {
+		return selVer, errors.New("File path: " + projpath + " not found on system")
+	}
+	version := ParseMain(projpath)
+	var v ConstraintStr = ConstraintStr(version)
+	accepted, err := v.Parse()
+	if err != nil {
+		return selVer, err
+	}
+
+	// get locally installed versions of tf
+	insVer, err := CheckInstVersion(chocolib)
+	if err != nil {
+		return selVer, err
+	}
+	Versions(insVer).Sort()
+
+	// compare version contrains to locally isntalled versions to get latest version that satisfies contraint
+	selVer = ""
+	for _, ver := range insVer {
+		if accepted.Allows(ver) {
+			selVer = ver.String()
+			break
+		}
+	}
+
+	if selVer == "" {
+		// fmt.Println("Terraform version satisfying: " + version + " was not found on your system.")
+		// fmt.Println("Check your chocolately lib or try 'choco install terraform --version [VERSION] -my' and try again.")
+		e := errors.New("No version satisfying constraint: " + version + " found on system.  Check your chocolately lib or try 'choco install terraform --version [VERSION] -my' and try again.")
+		return selVer, e
+	}
+
+	return selVer, e
+}
+
+// returns the version constraint from the tf project that tform is being executed from
+func ParseMain(path string) (version string) {
+	module, _ := tfconfig.LoadModule(path)
 	tfconstraint := module.RequiredCore[0]
 
 	return tfconstraint
 }
 
-func Exists(name string, version string) {
-	_, err := os.Stat(name)
-	if err == nil {
-		return
-	}
-	if errors.Is(err, os.ErrNotExist) {
-		fmt.Println("Terraform version: " + version + " was not found on your system.")
-		fmt.Println("Check your chocolately lib or try 'choco install terraform --version " + version + " -my' and try again.")
-		os.Exit(1)
-	}
-}
-
-func CheckVersion() (ver []Version) {
-	file, err := os.Open("C:\\programdata\\chocolatey\\lib\\")
+// returns list of installed versions of tf
+func CheckInstVersion(chocolib string) (ver []Version, e error) {
+	file, err := os.Open(chocolib)
 	if err != nil {
-		fmt.Println(err)
+		return ver, err
 	}
 	defer file.Close()
 
-	// probably a better way to get the installed versions of tf without interating over all files in this dir.
+	// probably a better way to get the installed versions of tf without iterating over all files in this dir.
 	list, _ := file.Readdirnames(0)
 	for _, name := range list {
 		if strings.HasPrefix(name, "terraform") {
@@ -85,31 +115,21 @@ func CheckVersion() (ver []Version) {
 			if name != "" && name != "terraform" {
 				version2, err := VersionStr(name).Parse()
 				if err != nil {
-					fmt.Println(err)
+					return ver, err
 				}
 				ver = append(ver, version2)
 			}
 		}
 	}
-	return ver
+	return ver, nil
 }
 
-// func Rightmost(insver []string, ver string) {
-// 	re := regexp.MustCompile(`.*([0-9]+)\.([0-9]+)\.([0-9]+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+[0-9A-Za-z-]+)?$`)
-// 	fmt.Println(strings.TrimPrefix(re.FindStringSubmatch(ver)[0], "~> "))
-// 	fmt.Println(insver)
-// 	v1, err := version.NewVersion(insver[0])
-// 	if err != nil {
-// 		fmt.Println(err)
-// 	}
-// 	v2, err := version.NewVersion(strings.TrimPrefix(re.FindStringSubmatch(ver)[0], "~> "))
-// 	if err != nil {
-// 		fmt.Println(err)
-// 	}
-// 	fmt.Println(v1.LessThan(v2))
-// 	fmt.Println()
-// }
+func Exists(path string) bool {
+	_, err := os.Stat(path)
+	if err == nil {
+		return true
+	} else {
+		return false
+	}
 
-// https://github.com/hashicorp/go-version
-
-// https://github.com/hashicorp/terraform/blob/main/internal/plugin/discovery/version.go
+}
