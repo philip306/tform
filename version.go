@@ -1,3 +1,4 @@
+// from https://github.com/hashicorp/terraform/blob/main/internal/plugin/discovery/version.go
 package main
 
 import (

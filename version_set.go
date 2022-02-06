@@ -1,3 +1,4 @@
+// https://github.com/hashicorp/terraform/blob/main/internal/plugin/discovery/version_set.go
 package main
 
 import (
