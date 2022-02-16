@@ -4,7 +4,7 @@ a quick and dirty wrapper that detects the version of terraform needed and autom
 
 ## Pre-requisites
 
-Tform expects that you manage your installed versions of terraform via chocolately and have installed the versions explicitly. e.g. `choco install terraform --verison 1.0.5 -my`
+Tform expects that you manage your installed versions of terraform via chocolately and have installed the versions explicitly. e.g. `choco install terraform --version 1.0.5 -my`
 
 Chocolately installs the terraform executables in `c:\programdata\chocolately\lib\terraform.x.x.x\tools\terraform.exe`.  Tform expects this to be the case.
 
